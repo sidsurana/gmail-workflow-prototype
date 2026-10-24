@@ -1,225 +1,38 @@
-# Gmail AI Agent
+# Gmail Workflow Prototype
 
-A Gmail-resident AI agent that owns objectives, decides next actions, and operates autonomously within Gmail. This is **not** a copilot or RPA tool—it's a true AI agent that makes decisions and takes actions.
+A TypeScript prototype that maps text objectives to Gmail API reads, searches, drafts and label actions, with in-memory state and approval hooks.
 
-## Core Principles
+## What is implemented
 
-- **Agent owns objectives**: The agent takes ownership of goals and works toward them
-- **Agent decides actions**: The agent autonomously determines what to do next
-- **Gmail-only operation**: All actions are scoped to Gmail
-- **Structured state**: Uses DOM + data, NOT screenshots
-- **Asynchronous drafting**: Creates drafts without blocking
-- **Asks when uncertain**: Never guesses—asks clarifying questions
-- **Never auto-sends**: Emails are always drafts, never sent automatically
-- **No assumptions**: Never guesses when information is missing
+`DecisionEngine` uses deterministic keyword matching and field extraction, not an LLM or learned planner. `GmailClient` wraps Gmail API operations for message reads/search, draft creation/update/deletion, labels, read status, archive and trash. The code has no email-send operation. `DOMParser` exposes illustrative DOM-to-state helpers; it is not a packaged browser extension.
 
-## Architecture
+`Agent` coordinates a decision cycle, questions and pending actions. `StateManager` logs metadata but does not persist or reload state. This is an unfinished integration scaffold, not a complete autonomous email product. Examples use `example.com` addresses; no mailbox exports, customer messages, credentials or access tokens are included.
 
-```
-src/
-├── core/
-│   ├── Agent.ts           # Main agent class
-│   ├── DecisionEngine.ts  # Decision-making logic
-│   ├── ActionExecutor.ts  # Action execution
-│   └── StateManager.ts    # State persistence
-├── gmail/
-│   ├── GmailClient.ts     # Gmail API client
-│   └── DOMParser.ts       # DOM state extraction
-├── auth/
-│   └── AuthHelper.ts      # OAuth2 authentication
-└── types/
-    └── index.ts           # TypeScript types
-```
+## Local setup and current blockers
 
-## Key Components
+Node.js 22 or later and npm:
 
-### Agent
-The main agent class that:
-- Manages objectives
-- Coordinates decision-making
-- Handles human approvals
-- Manages questions and answers
-
-### Decision Engine
-Determines what action to take next based on:
-- Current objective
-- Available context
-- State analysis
-- Ambiguity detection
-
-### Action Executor
-Executes actions on Gmail:
-- **Safe by default**: Irreversible actions require approval
-- **Never auto-sends**: All emails are drafts
-- **Structured operations**: Uses Gmail API, not DOM manipulation
-
-### Gmail Client
-Structured interface to Gmail:
-- Uses Gmail API (not screenshots)
-- Extracts structured data
-- Supports all email operations
-- DOM parsing for interface state
-
-## Installation
-
-1. Install dependencies:
-```bash
-npm install
-```
-
-2. Set up Gmail API credentials:
-   - Go to [Google Cloud Console](https://console.cloud.google.com/)
-   - Create a new project or select existing
-   - Enable Gmail API
-   - Create OAuth 2.0 credentials
-   - Download `credentials.json` to project root
-
-3. Build:
-```bash
+```sh
+npm ci
 npm run build
 ```
 
-## Usage
+For source development, `npm run dev` invokes `tsx watch src/index.ts`. The CLI would require your own Gmail OAuth client and authorized token before it can access a mailbox. Nothing in this repository authenticates as the author's account. Do not run it against a real mailbox expecting a fully tested approval boundary.
 
-### Basic Usage
+The OAuth helper reads root-level `credentials.json` and `token.json`, which are ignored. Its fresh-consent function prints an authorization URL and then deliberately throws: authorization-code capture/exchange is not implemented. Existing documentation that claimed an automatically completed first-run flow was inaccurate. See [SETUP.md](SETUP.md) for the present boundary.
 
-```typescript
-import { Agent, GmailClient, AuthHelper } from './src/index.js';
+## Backend, AI and safety limitations
 
-// Authenticate
-const auth = await AuthHelper.authenticate();
-const gmailClient = new GmailClient(auth);
+There is no hosted service, public demo URL, model provider, paid AI gateway, API key, shared spending budget or AI inference component. A clone cannot access the author's mailbox or private model infrastructure. A separately configured Gmail OAuth backend/client is required for real API calls. This publication did not connect an account, add scopes, create credentials, send messages or exercise live Gmail operations.
 
-// Create agent
-const agent = new Agent(gmailClient);
+Approval handling is incomplete: `approveAction` calls an executor path that rechecks `requiresApproval` and can requeue an approved action. Draft creation may occur without an explicit per-draft approval when called with real credentials. Search/read results are not fully fed back into the planner's context; persistence is a stub. The confidence score is heuristic and not calibrated. Authentication, least-privilege scope design, approval-state transitions, durable storage and mocked integration coverage need further work before real use. Existing requested OAuth scopes include mailbox modification and composition; no new scopes were granted as part of publication.
 
-// Set an objective - agent will decide what to do
-await agent.setObjective('Draft an email to john@example.com about the meeting');
+## Source and verification
 
-// Check for pending approvals
-const approvals = agent.getPendingApprovals();
-if (approvals.length > 0) {
-  // Approve actions
-  await agent.approveAction(approvals[0].id);
-}
+This repository preserves the original history of `sidsurana/Untitled`; it is distinct from the Kaizen proposal demo and the application-demo repositories. The reachable history was audited before public visibility. No unit-test suite existed in the original source. The TypeScript build passes. No live Gmail calls or browser automation were performed. Dependency installation reports four moderate npm advisories in the existing dependency tree; no breaking upgrade was applied. A successful TypeScript build does not establish functional correctness.
 
-// Check for questions
-const questions = agent.getUnansweredQuestions();
-if (questions.length > 0) {
-  // Answer questions
-  await agent.answerQuestion(questions[0].id, 'The meeting is at 3pm');
-}
-```
+[ARCHITECTURE.md](ARCHITECTURE.md) retains the original architecture notes with a current-status correction. No user code was discarded or history rewritten.
 
-### Command Line
+## License and affiliation
 
-```bash
-npm start "Check my unread emails"
-npm start "Draft email to alice@example.com subject: Project Update body: Here's the status"
-npm start "Search for emails from bob@example.com"
-```
-
-## Action Types
-
-The agent can perform these actions:
-
-- `read_email` - Read a specific email
-- `search_emails` - Search for emails
-- `draft_email` - Create a draft (never auto-sent)
-- `update_draft` - Update an existing draft
-- `delete_draft` - Delete a draft (requires approval)
-- `add_label` - Add label to email (requires approval)
-- `remove_label` - Remove label from email
-- `mark_read` - Mark email as read
-- `mark_unread` - Mark email as unread
-- `archive` - Archive email (requires approval)
-- `move_to_trash` - Move to trash (requires approval)
-- `ask_question` - Ask for clarification
-- `wait_for_input` - Wait for human input
-
-## Safety Mechanisms
-
-### Irreversible Actions
-These actions **always** require approval:
-- `delete_draft`
-- `move_to_trash`
-- `archive`
-- `add_label` (configurable)
-
-### Never Auto-Send
-- All `draft_email` actions create drafts only
-- No action type exists for sending emails
-- Human must manually send drafts
-
-### Ambiguity Detection
-When information is missing or ambiguous:
-- Agent creates `ask_question` actions
-- Blocks execution until clarified
-- Never guesses or assumes
-
-## Decision Flow
-
-1. **Objective Set**: Agent receives an objective
-2. **State Update**: Agent updates state from Gmail
-3. **Analysis**: Decision engine analyzes state and objective
-4. **Ambiguity Check**: Detects missing information
-5. **Action Decision**: Determines next action
-6. **Approval Check**: Checks if action requires approval
-7. **Execution**: Executes action or waits for approval
-8. **Repeat**: Continues until objective complete or blocked
-
-## State Management
-
-Agent state includes:
-- Current objective
-- Email context (current email, thread, inbox)
-- Pending actions
-- Completed actions
-- Unanswered questions
-- Last update timestamp
-
-State is persisted and can be restored across sessions.
-
-## Development
-
-```bash
-# Development mode with watch
-npm run dev
-
-# Build
-npm run build
-
-# Run
-npm start
-```
-
-## Example Objectives
-
-```
-"Draft an email to team@example.com about the project status"
-"Check my unread emails and summarize them"
-"Find emails from last week about the budget"
-"Organize emails from john@example.com with label 'Important'"
-"Read the latest email from alice@example.com"
-```
-
-## Limitations
-
-- Requires Gmail API credentials
-- OAuth2 flow must be completed manually (first time)
-- DOM parsing works with Gmail's current structure
-- State persistence is in-memory (file-based coming soon)
-
-## Contributing
-
-This is a foundational implementation. Key areas for extension:
-- Enhanced decision engine with LLM integration
-- Better ambiguity detection
-- File-based state persistence
-- Web UI for approvals and questions
-- More sophisticated email parsing
-- Thread analysis and context building
-
-## License
-
-MIT
+[MIT](LICENSE) for user-owned code, copyright 2026 Siddarth Surana. Dependencies retain their upstream licenses. This independent prototype is not affiliated with or endorsed by Google or Gmail. Trademarks and Google APIs remain subject to their owners' rights and terms.

@@ -1,7 +1,7 @@
 {
-  "name": "gmail-ai-agent",
+  "name": "gmail-workflow-prototype",
   "version": "1.0.0",
-  "description": "Gmail-resident AI agent that owns objectives and decides actions",
+  "description": "TypeScript prototype for rule-based Gmail reading, search, drafts and label workflows with incomplete OAuth and approval scaffolding.",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {

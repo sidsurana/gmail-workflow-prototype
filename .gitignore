@@ -5,3 +5,10 @@ dist/
 .DS_Store
 credentials.json
 token.json
+
+.env.*
+!.env.example
+.vercel/
+agent-state.json
+credentials*.json
+token*.json

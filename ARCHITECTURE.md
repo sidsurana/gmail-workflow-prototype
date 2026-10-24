@@ -1,3 +1,5 @@
+> Current status: this is a deterministic, unfinished prototype. OAuth first consent, approval transitions and durable persistence are incomplete. Original architecture notes below describe intent; see README for actual behavior.
+
 # Architecture Overview
 
 ## System Design
